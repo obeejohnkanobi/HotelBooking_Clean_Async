@@ -48,6 +48,8 @@ namespace HotelBooking.UnitTests
             fakeRoomRepository.Setup(x =>
             x.GetAsync(It.IsInRange<int>(1, 2, Moq.Range.Inclusive))).ReturnsAsync(rooms[1]);
 
+            fakeRoomRepository.Setup(x => x.RemoveAsync(It.IsAny<int>())).Returns(Task.CompletedTask);
+
 
             // Create RoomsController
             controller = new RoomsController(fakeRoomRepository.Object);
@@ -97,22 +99,14 @@ namespace HotelBooking.UnitTests
         }
 
         [Fact]
-        public async Task Delete_WhenIdIsLargerThanTwo_RemoveThrowsException()
+        public async Task Delete_WhenIdIsLargerThanTwo_RemoveIsCalled()
         {
-            // Instruct the fake Remove method to throw an InvalidOperationException, if a room id that
-            // does not exist in the repository is passed as a parameter. This behavior corresponds to
-            // the behavior of the real repoository's Remove method.
-            fakeRoomRepository.Setup(x =>
-                    x.RemoveAsync(It.Is<int>(id => id < 1 || id > 2))).
-                    Throws<InvalidOperationException>();
+            // Act
+            var response = await controller.Delete(3);
 
-            Task result() => controller.Delete(3);
-            
             // Assert
-            await Assert.ThrowsAsync<InvalidOperationException>(result);
-
-            // Assert against the mock object
-            fakeRoomRepository.Verify(x => x.RemoveAsync(It.IsAny<int>()));
+            Assert.IsType<NoContentResult>(response);
+            fakeRoomRepository.Verify(x => x.RemoveAsync(3), Times.Once);
         }
     }
 }

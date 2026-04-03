@@ -7,13 +7,16 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Composition root: infrastructure choices are made here so Core remains
+// framework-agnostic and unit-test friendly.
 //SqliteConnection connection = new SqliteConnection("DataSource=:memory:");
 // In-memory database only exists while the connection is open
 //connection.Open();
 builder.Services.AddDbContext<HotelBookingContext>(opt => 
     opt.UseInMemoryDatabase("HotelBookingDb"));
 
+// Dependency Inversion in action: business services depend on abstractions,
+// while the application layer wires those abstractions to concrete adapters.
 builder.Services.AddScoped<IRepository<Room>, RoomRepository>();
 builder.Services.AddScoped<IRepository<Customer>, CustomerRepository>();
 builder.Services.AddScoped<IRepository<Booking>, BookingRepository>();
@@ -33,7 +36,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 
-    // Initialize the database.
+    // Seed known data for reproducible local behavior and demo scenarios.
     using (var scope = app.Services.CreateScope())
     {
         var services = scope.ServiceProvider;

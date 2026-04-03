@@ -18,14 +18,21 @@ namespace HotelBooking.WebApi.Controllers
             bookingManager = manager;
         }
 
-        // GET: bookings
+        /// <summary>
+        /// Gets all bookings.
+        /// </summary>
+        /// <returns>All bookings.</returns>
         [HttpGet(Name = "GetBookings")]
         public async Task<IEnumerable<Booking>> Get()
         {
             return await bookingRepository.GetAllAsync();
         }
 
-        // GET bookings/5
+        /// <summary>
+        /// Gets booking by identifier.
+        /// </summary>
+        /// <param name="id">Booking identifier.</param>
+        /// <returns>The booking when found; otherwise <see cref="NotFoundResult"/>.</returns>
         [HttpGet("{id}", Name = "GetBooking")]
         public async Task<IActionResult> Get(int id)
         {
@@ -37,7 +44,11 @@ namespace HotelBooking.WebApi.Controllers
             return new ObjectResult(item);
         }
 
-        // POST bookings
+        /// <summary>
+        /// Creates a booking when at least one room is available.
+        /// </summary>
+        /// <param name="booking">Booking request body.</param>
+        /// <returns>201 on success, 400 for invalid input, 409 when no room is available.</returns>
         [HttpPost]
         public async Task<IActionResult> Post([FromBody]Booking booking)
         {
@@ -46,20 +57,35 @@ namespace HotelBooking.WebApi.Controllers
                 return BadRequest();
             }
 
-            bool created = await bookingManager.CreateBooking(booking);
+            bool created;
+            try
+            {
+                // Domain validation lives in BookingManager; controller maps
+                // domain outcomes/exceptions to protocol-level HTTP responses.
+                created = await bookingManager.CreateBooking(booking);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
 
             if (created)
             {
-                return CreatedAtRoute("GetBookings", null);
+                // 201 + route to created resource keeps API behavior REST-friendly.
+                return CreatedAtRoute("GetBooking", new { id = booking.Id }, booking);
             }
-            else
-            {
-                return Conflict("The booking could not be created. All rooms are occupied. Please try another period.");
-            }
+
+            // Conflict communicates that payload shape is valid but state prevents action.
+            return Conflict("The booking could not be created. All rooms are occupied. Please try another period.");
 
         }
 
-        // PUT bookings/5
+        /// <summary>
+        /// Updates mutable booking fields.
+        /// </summary>
+        /// <param name="id">Booking identifier.</param>
+        /// <param name="booking">Updated booking payload.</param>
+        /// <returns>NoContent on success, otherwise BadRequest or NotFound.</returns>
         [HttpPut("{id}")]
         public async Task<IActionResult> Put(int id, [FromBody]Booking booking)
         {
@@ -75,9 +101,8 @@ namespace HotelBooking.WebApi.Controllers
                 return NotFound();
             }
 
-            // This implementation will only modify the booking's state and customer.
-            // It is not safe to directly modify StartDate, EndDate and Room, because
-            // it could conflict with other active bookings.
+            // Safety rule: mutating date range or room requires re-running availability
+            // checks, so this endpoint only allows state/customer updates.
             modifiedBooking.IsActive = booking.IsActive;
             modifiedBooking.CustomerId = booking.CustomerId;
 
@@ -85,7 +110,11 @@ namespace HotelBooking.WebApi.Controllers
             return NoContent();
         }
 
-        // DELETE bookings/5
+        /// <summary>
+        /// Deletes a booking by identifier.
+        /// </summary>
+        /// <param name="id">Booking identifier.</param>
+        /// <returns>NoContent on success, otherwise NotFound.</returns>
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
